@@ -29,6 +29,7 @@ dump_ui() {
   report=$("$ADB" shell uiautomator dump "$DEVICE_DUMP" 2>&1) || true
   rm -f "$out"
   "$ADB" pull "$DEVICE_DUMP" "$out" >/dev/null 2>&1 || true
+  "$ADB" shell rm -f "$DEVICE_DUMP"
   if [ ! -s "$out" ]; then
     echo "error: UI dump failed: $report" >&2
     exit 1

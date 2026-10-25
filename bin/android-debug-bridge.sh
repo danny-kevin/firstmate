@@ -94,16 +94,19 @@ case "$cmd" in
 
   status)
     echo "=== Focused Window ==="
-    "$ADB" shell dumpsys window | grep -E "mCurrentFocus|mFocusedApp" || true
+    window=$("$ADB" shell dumpsys window)
+    grep -E "mCurrentFocus|mFocusedApp" <<< "$window" || true
     echo "=== Package Info ($PACKAGE) ==="
-    "$ADB" shell dumpsys package "$PACKAGE" | grep -E "versionCode|versionName|lastUpdateTime" || true
+    package=$("$ADB" shell dumpsys package "$PACKAGE")
+    grep -E "versionCode|versionName|lastUpdateTime" <<< "$package" || true
     ;;
 
   logcat)
     # Dump recent app logs or crash stack traces
     lines="${1:-100}"
     echo "=== Recent logs for $PACKAGE (last $lines lines) ==="
-    "$ADB" logcat -d -t "$lines" -v time | grep -E "$PACKAGE|AndroidRuntime|FATAL" || true
+    log=$("$ADB" logcat -d -t "$lines" -v time)
+    grep -E "$PACKAGE|AndroidRuntime|FATAL" <<< "$log" || true
     ;;
 
   logcat-clear)
@@ -169,6 +172,10 @@ case "$cmd" in
     fi
     if [ -n "$(printf '%s' "$text" | LC_ALL=C tr -d ' -~')" ]; then
       echo "error: type supports printable ASCII text only" >&2
+      exit 1
+    fi
+    if [[ "$text" == *%s* ]]; then
+      echo "error: type cannot send a literal %s sequence" >&2
       exit 1
     fi
     # adb joins arguments into one device-side shell command: escape everything

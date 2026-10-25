@@ -33,9 +33,8 @@ const CALM_ASSISTANT_LAYOUT_GENERATION = 2;
 type CalmAssistantLayoutPatch = {
   hidesThinking: () => boolean;
   hidesWorkingNote: () => boolean;
-  // Absent on the wrapper that also required Pi's collapsed-thinking setting.
-  // The next install wraps that wrapper rather than replacing it, so it stays in
-  // the chain as the inner call.
+  // A generation-1 patch has no generation value, so the next install chains it
+  // as the inner call rather than replacing it.
   generation: typeof CALM_ASSISTANT_LAYOUT_GENERATION;
 };
 

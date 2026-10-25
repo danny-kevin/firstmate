@@ -18,22 +18,24 @@ if [ ! -x "$ADB" ]; then
 fi
 
 state_dir() {
-  local dir="${XDG_STATE_HOME:-$HOME/.local/state}/android-debug-bridge"
+  local dir="$HOME/.local/state/android-debug-bridge"
   mkdir -p -m 700 "$dir"
   echo "$dir"
 }
 
 dump_ui() {
-  local out="$1" report
+  local out="$1" report tmp
   "$ADB" shell rm -f "$DEVICE_DUMP"
   report=$("$ADB" shell uiautomator dump "$DEVICE_DUMP" 2>&1) || true
-  rm -f "$out"
-  "$ADB" pull "$DEVICE_DUMP" "$out" >/dev/null 2>&1 || true
+  tmp=$(mktemp "$out.XXXXXX")
+  "$ADB" pull "$DEVICE_DUMP" "$tmp" >/dev/null 2>&1 || true
   "$ADB" shell rm -f "$DEVICE_DUMP"
-  if [ ! -s "$out" ]; then
+  if [ ! -s "$tmp" ]; then
+    rm -f "$tmp"
     echo "error: UI dump failed: $report" >&2
     exit 1
   fi
+  mv -f "$tmp" "$out"
 }
 
 # Mode "list" prints every match; mode "tap" prints "x y" for exactly one match.

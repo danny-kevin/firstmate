@@ -27,9 +27,9 @@ type AssistantUpdateContent = (
 ) => void;
 
 // Keep the introduction-version symbol stable so a second load updates the same
-// wrapper. A live session that already installed the older wrapper, which also
-// required Pi's collapsed-thinking setting, must replace that method on the next
-// load. Leaving it in place is why hideThinkingBlock true still shows reasoning.
+// wrapper. A live session that already installed the older wrapper keeps it as the
+// inner call on the next load. This wrapper strips thinking before that inner call
+// runs, so the older layer's collapsed-thinking gating no longer decides what shows.
 const CALM_ASSISTANT_LAYOUT_PATCH = Symbol.for(
   "firstmate:calm-assistant-layout:pi-0.81.1",
 );
@@ -39,9 +39,9 @@ type CalmAssistantLayoutPatch = {
   hidesThinking: () => boolean;
   hidesWorkingNote: () => boolean;
   // Absent on the wrapper that also required Pi's collapsed-thinking setting.
-  // The next install replaces that wrapper instead of leaving it on the prototype.
+  // The next install wraps that wrapper rather than replacing it, so it stays in
+  // the chain as the inner call.
   generation: typeof CALM_ASSISTANT_LAYOUT_GENERATION;
-  innerUpdateContent: AssistantUpdateContent;
 };
 
 // A mid-turn assistant message is one the model did not end its response with: Pi's
@@ -79,14 +79,10 @@ export function installCalmAssistantLayout(): void {
   if (typeof currentUpdateContent !== "function") {
     throw new Error("Firstmate Calm requires Pi AssistantMessageComponent.updateContent");
   }
-  // An older patch stored no inner method. Its prototype wrapper is the inner
-  // call, so this install does not stack another copy on every reload.
-  const innerUpdateContent = installed?.innerUpdateContent ?? currentUpdateContent;
   const patch: CalmAssistantLayoutPatch = {
     hidesThinking,
     hidesWorkingNote,
     generation: CALM_ASSISTANT_LAYOUT_GENERATION,
-    innerUpdateContent,
   };
 
   AssistantMessageComponent.prototype.updateContent = function (
@@ -124,7 +120,7 @@ export function installCalmAssistantLayout(): void {
 
     // Older Pi builds take only the message. Passing the streaming flag through keeps
     // the installed signature's default from freezing a stale streaming bit.
-    patch.innerUpdateContent.call(this, presentationMessage, isStreaming);
+    currentUpdateContent.call(this, presentationMessage, isStreaming);
     if (presentationMessage !== message) state.lastMessage = message;
   };
 

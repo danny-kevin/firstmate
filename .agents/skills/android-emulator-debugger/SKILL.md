@@ -9,7 +9,7 @@ Use this skill when diagnosing, reproducing, testing, or verifying bugs in the A
 
 ## Tool Entrypoint
 The primary helper is located at:
-`/Users/danny/Projects/firstmate/bin/android-debug-bridge.sh`
+`bin/android-debug-bridge.sh`
 
 Default Package: `app.fitness.demo` (override via `PACKAGE="your.pkg.id"`)
 

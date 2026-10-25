@@ -5,6 +5,7 @@ set -euo pipefail
 
 ADB="${ADB:-/opt/homebrew/share/android-commandlinetools/platform-tools/adb}"
 PACKAGE="${PACKAGE:-app.fitness.demo}"
+DEVICE_DUMP=/sdcard/window_dump.xml
 
 if [ ! -x "$ADB" ]; then
   # Fallback to PATH adb if available
@@ -15,6 +16,73 @@ if [ ! -x "$ADB" ]; then
     exit 1
   fi
 fi
+
+dump_ui() {
+  local out="$1" report
+  "$ADB" shell rm -f "$DEVICE_DUMP"
+  report=$("$ADB" shell uiautomator dump "$DEVICE_DUMP" 2>&1) || true
+  rm -f "$out"
+  "$ADB" pull "$DEVICE_DUMP" "$out" >/dev/null 2>&1 || true
+  if [ ! -s "$out" ]; then
+    echo "error: UI dump failed: $report" >&2
+    exit 1
+  fi
+}
+
+# Mode "list" prints every match; mode "tap" prints "x y" for exactly one match.
+# Exact text/content-desc matches win over substring matches.
+ui_find() {
+  python3 -I - "$@" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+xml_path, query, mode = sys.argv[1], sys.argv[2], sys.argv[3]
+needle = query.lower()
+exact = []
+partial = []
+for node in ET.parse(xml_path).getroot().iter('node'):
+    text = node.attrib.get('text', '')
+    desc = node.attrib.get('content-desc', '')
+    m = re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib.get('bounds', ''))
+    if not m:
+        continue
+    x1, y1, x2, y2 = map(int, m.groups())
+    el = {
+        'text': text,
+        'desc': desc,
+        'class': node.attrib.get('class', ''),
+        'center': ((x1 + x2) // 2, (y1 + y2) // 2),
+        'bounds': node.attrib.get('bounds', ''),
+    }
+    if needle in (text.lower(), desc.lower()):
+        exact.append(el)
+    elif needle in text.lower() or needle in desc.lower():
+        partial.append(el)
+
+matches = exact or partial
+if mode == 'tap':
+    if not matches:
+        print(f'error: could not find element containing "{query}"', file=sys.stderr)
+        sys.exit(1)
+    if len(matches) > 1:
+        print(f'error: "{query}" matches {len(matches)} elements; use a more specific text or tap <x> <y>', file=sys.stderr)
+        for el in matches:
+            print(f"  [{el['class']}] text='{el['text']}' desc='{el['desc']}' bounds={el['bounds']}", file=sys.stderr)
+        sys.exit(1)
+    cx, cy = matches[0]['center']
+    print(f'{cx} {cy}')
+    sys.exit(0)
+
+if not matches:
+    print(f'No elements matching "{query}" found.')
+    sys.exit(0)
+print(f'Found {len(matches)} matching element(s):')
+for idx, el in enumerate(matches, 1):
+    cx, cy = el['center']
+    print(f"{idx}. [{el['class']}] text='{el['text']}' desc='{el['desc']}' -> Center: ({cx}, {cy}) bounds={el['bounds']}")
+PY
+}
 
 cmd="${1:-help}"
 shift || true
@@ -51,8 +119,7 @@ case "$cmd" in
 
   dump-ui)
     out="${1:-/tmp/android-ui.xml}"
-    "$ADB" shell uiautomator dump /sdcard/window_dump.xml >/dev/null 2>&1
-    "$ADB" pull /sdcard/window_dump.xml "$out" >/dev/null 2>&1
+    dump_ui "$out"
     echo "UI hierarchy dumped to $out"
     ;;
 
@@ -63,45 +130,8 @@ case "$cmd" in
       exit 1
     fi
     tmp="/tmp/android-ui-find.xml"
-    "$ADB" shell uiautomator dump /sdcard/window_dump.xml >/dev/null 2>&1
-    "$ADB" pull /sdcard/window_dump.xml "$tmp" >/dev/null 2>&1
-    python3 -c "
-import xml.etree.ElementTree as ET
-import re, sys
-
-tree = ET.parse('$tmp')
-root = tree.getroot()
-query = '''$query'''.lower()
-found = []
-
-for node in root.iter('node'):
-    text = node.attrib.get('text', '')
-    desc = node.attrib.get('content-desc', '')
-    bounds = node.attrib.get('bounds', '')
-    if query in text.lower() or query in desc.lower():
-        # parse bounds [x1,y1][x2,y2]
-        m = re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', bounds)
-        if m:
-            x1, y1, x2, y2 = map(int, m.groups())
-            cx = (x1 + x2) // 2
-            cy = (y1 + y2) // 2
-            found.append({
-                'text': text,
-                'desc': desc,
-                'class': node.attrib.get('class', ''),
-                'center': (cx, cy),
-                'bounds': bounds
-            })
-
-if not found:
-    print('No elements matching \"$query\" found.')
-    sys.exit(0)
-
-print(f'Found {len(found)} matching element(s):')
-for idx, el in enumerate(found, 1):
-    cx, cy = el['center']
-    print(f\"{idx}. [{el['class']}] text='{el['text']}' desc='{el['desc']}' -> Center: ({cx}, {cy}) bounds={el['bounds']}\")
-"
+    dump_ui "$tmp"
+    ui_find "$tmp" "$query" list
     ;;
 
   tap)
@@ -122,36 +152,11 @@ for idx, el in enumerate(found, 1):
       exit 1
     fi
     tmp="/tmp/android-ui-tap.xml"
-    "$ADB" shell uiautomator dump /sdcard/window_dump.xml >/dev/null 2>&1
-    "$ADB" pull /sdcard/window_dump.xml "$tmp" >/dev/null 2>&1
-    coords=$(python3 -c "
-import xml.etree.ElementTree as ET
-import re, sys
-
-tree = ET.parse('$tmp')
-root = tree.getroot()
-query = '''$query'''.lower()
-
-for node in root.iter('node'):
-    text = node.attrib.get('text', '')
-    desc = node.attrib.get('content-desc', '')
-    bounds = node.attrib.get('bounds', '')
-    if query in text.lower() or query in desc.lower():
-        m = re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', bounds)
-        if m:
-            x1, y1, x2, y2 = map(int, m.groups())
-            print(f'{(x1 + x2) // 2} {(y1 + y2) // 2}')
-            sys.exit(0)
-sys.exit(1)
-" || true)
-
-    if [ -z "$coords" ]; then
-      echo "error: could not find element containing '$query'" >&2
-      exit 1
-    fi
-    # shellcheck disable=SC2086
-    "$ADB" shell input tap $coords
-    echo "Tapped '$query' at ($coords)"
+    dump_ui "$tmp"
+    coords=$(ui_find "$tmp" "$query" tap)
+    read -r tap_x tap_y <<< "$coords"
+    "$ADB" shell input tap "$tap_x" "$tap_y"
+    echo "Tapped '$query' at ($tap_x, $tap_y)"
     ;;
 
   type)
@@ -160,7 +165,18 @@ sys.exit(1)
       echo "error: text required" >&2
       exit 1
     fi
-    "$ADB" shell input text "$text"
+    # adb joins arguments into one device-side shell command: escape everything
+    # for that shell, and encode spaces as %s, which input text turns back into spaces.
+    device_text=""
+    for ((i = 0; i < ${#text}; i++)); do
+      char="${text:i:1}"
+      case "$char" in
+        [[:alnum:]]) device_text+="$char" ;;
+        " ") device_text+="%s" ;;
+        *) device_text+="\\$char" ;;
+      esac
+    done
+    "$ADB" shell input text "$device_text"
     echo "Typed '$text'"
     ;;
 

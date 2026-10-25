@@ -29,7 +29,7 @@ dump_ui() {
   report=$("$ADB" shell uiautomator dump "$DEVICE_DUMP" 2>&1) || true
   tmp=$(mktemp "$out.XXXXXX")
   "$ADB" pull "$DEVICE_DUMP" "$tmp" >/dev/null 2>&1 || true
-  "$ADB" shell rm -f "$DEVICE_DUMP"
+  "$ADB" shell rm -f "$DEVICE_DUMP" >/dev/null 2>&1 || true
   if [ ! -s "$tmp" ]; then
     rm -f "$tmp"
     echo "error: UI dump failed: $report" >&2
@@ -212,7 +212,7 @@ case "$cmd" in
       echo "error: text required" >&2
       exit 1
     fi
-    if [ -n "$(printf '%s' "$text" | LC_ALL=C tr -d ' -~')" ]; then
+    if [ "$(printf '%s' "$text" | LC_ALL=C tr -d ' -~' | wc -c)" -ne 0 ]; then
       echo "error: type supports printable ASCII text only" >&2
       exit 1
     fi

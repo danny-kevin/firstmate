@@ -19,7 +19,8 @@ fi
 
 state_dir() {
   local dir="$HOME/.local/state/android-debug-bridge"
-  mkdir -p -m 700 "$dir"
+  mkdir -p "$dir"
+  chmod 700 "$dir"
   echo "$dir"
 }
 

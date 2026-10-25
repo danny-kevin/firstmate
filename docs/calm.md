@@ -64,7 +64,7 @@ A fresh Pi session or new Calm extension lifetime starts at the normal initial p
 
 Calm hides these rows:
 
-- Collapsed thinking labels.
+- Thinking and reasoning blocks, collapsed or expanded.
 - The mid-turn assistant working-note blocks governed by the [shared preservation rule](#shared-preservation-rule-for-assistant-text) above.
 - The shells for the Pi built-in tool names Calm owns.
 - Firstmate-owned tool shells listed in the [Pi tool audit](calm-mode-feasibility.md#firstmate-pi-tool-audit).
@@ -121,9 +121,11 @@ These are supported-API boundaries rather than hidden-content failures.
 Calm has no numeric Pi version minimum or maximum.
 It never refuses Pi solely because its version is newer than a previously verified version.
 
-When Calm loads, the collapsed-thinking, operational-user-row, and queued-operational-row presentation adapters probe the exact Pi API seam they patch.
+When Calm loads, the assistant-thinking, operational-user-row, and queued-operational-row presentation adapters probe the exact Pi API seam they patch.
 If Pi removes one of those seams, Calm logs a diagnostic naming the unavailable adapter and skips only that adapter.
 `/calm`, the other adapters, and unrelated Pi extensions remain available.
+
+A running Pi session must be restarted after the thinking-layout update, because a live session keeps the older wrapper's Calm state.
 
 ### Session check for queued inputs
 

@@ -60,7 +60,12 @@ for node in ET.parse(xml_path).getroot().iter('node'):
     elif needle in text.lower() or needle in desc.lower():
         partial.append(el)
 
-matches = exact or partial
+matches = []
+seen_centers = set()
+for el in exact or partial:
+    if el['center'] not in seen_centers:
+        seen_centers.add(el['center'])
+        matches.append(el)
 if mode == 'tap':
     if not matches:
         print(f'error: could not find element containing "{query}"', file=sys.stderr)

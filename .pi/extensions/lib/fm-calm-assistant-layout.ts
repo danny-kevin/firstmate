@@ -7,6 +7,7 @@
 // presentation copy. Substantive mid-turn text is preserved. The message itself, model
 // context, session storage, and export rendering are never touched.
 // ./fm-calm-visibility.ts owns which classes Calm hides.
+// A running Pi session must be restarted after this layout update.
 import type { AssistantMessageComponent as PiAssistantMessageComponent } from "@earendil-works/pi-coding-agent";
 import * as PiCodingAgent from "@earendil-works/pi-coding-agent";
 import { calmTextIsSubstantive } from "./fm-calm-preservation.ts";

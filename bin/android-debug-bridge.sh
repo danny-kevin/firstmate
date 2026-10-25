@@ -48,6 +48,8 @@ for node in ET.parse(xml_path).getroot().iter('node'):
     if not m:
         continue
     x1, y1, x2, y2 = map(int, m.groups())
+    if x2 <= x1 or y2 <= y1 or node.attrib.get('visible-to-user') == 'false':
+        continue
     el = {
         'text': text,
         'desc': desc,

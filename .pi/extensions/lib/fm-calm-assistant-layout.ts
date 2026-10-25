@@ -20,12 +20,6 @@ type AssistantMessagePresentationState = {
   lastMessage?: AssistantMessage;
 };
 
-type AssistantUpdateContent = (
-  this: unknown,
-  message: AssistantMessage,
-  isStreaming?: boolean,
-) => void;
-
 // Keep the introduction-version symbol stable so a second load updates the same
 // wrapper. A live session that already installed the older wrapper keeps it as the
 // inner call on the next load. This wrapper strips thinking before that inner call

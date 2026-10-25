@@ -39,8 +39,8 @@ bin/android-debug-bridge.sh tap-text "开始训练"
 # Tap by exact coordinates:
 bin/android-debug-bridge.sh tap 540 1200
 
-# Type text into focused field:
-bin/android-debug-bridge.sh type "自定义深蹲"
+# Type printable ASCII text into focused field (non-ASCII such as CJK is rejected):
+bin/android-debug-bridge.sh type "squat set 1"
 
 # Send hardware/navigation keys (BACK, HOME, ENTER):
 bin/android-debug-bridge.sh key BACK

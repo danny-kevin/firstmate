@@ -129,7 +129,8 @@ case "$cmd" in
       echo "error: search text required" >&2
       exit 1
     fi
-    tmp="/tmp/android-ui-find.xml"
+    tmp=$(mktemp)
+    trap 'rm -f "$tmp"' EXIT
     dump_ui "$tmp"
     ui_find "$tmp" "$query" list
     ;;
@@ -151,7 +152,8 @@ case "$cmd" in
       echo "error: text query required" >&2
       exit 1
     fi
-    tmp="/tmp/android-ui-tap.xml"
+    tmp=$(mktemp)
+    trap 'rm -f "$tmp"' EXIT
     dump_ui "$tmp"
     coords=$(ui_find "$tmp" "$query" tap)
     read -r tap_x tap_y <<< "$coords"
@@ -163,6 +165,10 @@ case "$cmd" in
     text="${1:-}"
     if [ -z "$text" ]; then
       echo "error: text required" >&2
+      exit 1
+    fi
+    if [ -n "$(printf '%s' "$text" | LC_ALL=C tr -d ' -~')" ]; then
+      echo "error: type supports printable ASCII text only" >&2
       exit 1
     fi
     # adb joins arguments into one device-side shell command: escape everything

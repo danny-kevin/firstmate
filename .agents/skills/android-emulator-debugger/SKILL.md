@@ -27,8 +27,8 @@ Find elements on screen without guessing coordinates:
 # Find any element by visible text or content-description:
 bin/android-debug-bridge.sh find-text "开始训练"
 
-# Dump full UI hierarchy to XML:
-bin/android-debug-bridge.sh dump-ui /tmp/ui.xml
+# Dump full UI hierarchy to XML (default: ~/.local/state/android-debug-bridge/android-ui.xml):
+bin/android-debug-bridge.sh dump-ui
 ```
 
 ### 3. Drive UI & Reproduce Bugs (Tap, Type, Swipe, Key)
@@ -62,9 +62,9 @@ bin/android-debug-bridge.sh logcat 200
 
 ### 5. Multi-modal Screenshot & Visual Verification
 ```bash
-bin/android-debug-bridge.sh screenshot /tmp/app-screen.png
+bin/android-debug-bridge.sh screenshot
 ```
-Captures the current emulator frame for inspection or visual verification.
+Captures the current emulator frame for inspection or visual verification. Without a path it saves to `~/.local/state/android-debug-bridge/android-screenshot.png`; the directory is created with mode 0700 because screens can show personal data. Pass a path to choose another location.
 
 ### 6. Reset / Restart App
 ```bash

@@ -17,6 +17,12 @@ if [ ! -x "$ADB" ]; then
   fi
 fi
 
+state_dir() {
+  local dir="${XDG_STATE_HOME:-$HOME/.local/state}/android-debug-bridge"
+  mkdir -p -m 700 "$dir"
+  echo "$dir"
+}
+
 dump_ui() {
   local out="$1" report
   "$ADB" shell rm -f "$DEVICE_DUMP"
@@ -91,6 +97,32 @@ for idx, el in enumerate(matches, 1):
 PY
 }
 
+usage() {
+  cat <<EOF
+Usage: bin/android-debug-bridge.sh <command> [args...]
+
+Commands:
+  devices               List connected devices/emulators
+  status                Show currently focused activity and package metadata
+  logcat [lines]        Show recent app logs, crash traces, and exceptions
+  logcat-clear          Clear logcat buffer
+  screenshot [path]     Capture screen and save to PNG (default: ~/.local/state/android-debug-bridge/android-screenshot.png)
+  dump-ui [path]        Dump full accessibility UI tree XML (default: ~/.local/state/android-debug-bridge/android-ui.xml)
+  find-text <text>      Find text on screen and return its center coordinates
+  tap <x> <y>           Tap screen at coordinates
+  tap-text <text>       Find element by text/desc and tap its center
+  type <text>           Type printable ASCII text into currently focused input
+  key <code|name>       Send keyevent (e.g. BACK, HOME, ENTER)
+  swipe <x1> <y1> <x2> <y2> [duration]
+                        Swipe gesture
+  restart               Force stop and launch MainActivity
+
+Environment:
+  PACKAGE               Default package name (current: $PACKAGE)
+  ADB                   Adb binary path (current: $ADB)
+EOF
+}
+
 cmd="${1:-help}"
 shift || true
 
@@ -122,13 +154,13 @@ case "$cmd" in
     ;;
 
   screenshot)
-    out="${1:-/tmp/android-screenshot.png}"
+    out="${1:-$(state_dir)/android-screenshot.png}"
     "$ADB" exec-out screencap -p > "$out"
     echo "Screenshot saved to $out"
     ;;
 
   dump-ui)
-    out="${1:-/tmp/android-ui.xml}"
+    out="${1:-$(state_dir)/android-ui.xml}"
     dump_ui "$out"
     echo "UI hierarchy dumped to $out"
     ;;
@@ -226,29 +258,12 @@ case "$cmd" in
     "$ADB" shell am start -n "$PACKAGE/.MainActivity"
     ;;
 
+  help)
+    usage
+    ;;
+
   *)
-    cat <<EOF
-Usage: bin/android-debug-bridge.sh <command> [args...]
-
-Commands:
-  devices               List connected devices/emulators
-  status                Show currently focused activity and package metadata
-  logcat [lines]        Show recent app logs, crash traces, and exceptions
-  logcat-clear          Clear logcat buffer
-  screenshot [path]     Capture screen and save to PNG
-  dump-ui [path]        Dump full accessibility UI tree XML
-  find-text <text>      Find text on screen and return its center coordinates
-  tap <x> <y>           Tap screen at coordinates
-  tap-text <text>       Find element by text/desc and tap its center
-  type <text>           Type text into currently focused input
-  key <code|name>       Send keyevent (e.g. BACK, HOME, ENTER)
-  swipe <x1> <y1> <x2> <y2> [duration]
-                        Swipe gesture
-  restart               Force stop and launch MainActivity
-
-Environment:
-  PACKAGE               Default package name (current: $PACKAGE)
-  ADB                   Adb binary path (current: $ADB)
-EOF
+    usage >&2
+    exit 1
     ;;
 esac

@@ -2,10 +2,10 @@
 // updateContent method. installCalmAssistantLayout() probes that exact method and throws
 // if it is missing; fm-calm.ts catches that and skips only this adapter with a diagnostic
 // instead of blocking Calm or Pi.
-// This layout removes collapsed thinking and short mid-turn assistant text blocks
-// classified as "assistant-working-note" from a shallow presentation copy. Substantive
-// mid-turn text is preserved. The message
-// itself, model context, session storage, and export rendering are never touched.
+// This layout removes thinking and reasoning blocks, collapsed or expanded, and short
+// mid-turn assistant text blocks classified as "assistant-working-note" from a shallow
+// presentation copy. Substantive mid-turn text is preserved. The message itself, model
+// context, session storage, and export rendering are never touched.
 // ./fm-calm-visibility.ts owns which classes Calm hides.
 import type { AssistantMessageComponent as PiAssistantMessageComponent } from "@earendil-works/pi-coding-agent";
 import * as PiCodingAgent from "@earendil-works/pi-coding-agent";
@@ -20,9 +20,28 @@ type AssistantMessagePresentationState = {
   lastMessage?: AssistantMessage;
 };
 
+type AssistantUpdateContent = (
+  this: unknown,
+  message: AssistantMessage,
+  isStreaming?: boolean,
+) => void;
+
+// Keep the introduction-version symbol stable so a second load updates the same
+// wrapper. A live session that already installed the older wrapper, which also
+// required Pi's collapsed-thinking setting, must replace that method on the next
+// load. Leaving it in place is why hideThinkingBlock true still shows reasoning.
+const CALM_ASSISTANT_LAYOUT_PATCH = Symbol.for(
+  "firstmate:calm-assistant-layout:pi-0.81.1",
+);
+const CALM_ASSISTANT_LAYOUT_GENERATION = 2;
+
 type CalmAssistantLayoutPatch = {
   hidesThinking: () => boolean;
   hidesWorkingNote: () => boolean;
+  // Absent on the wrapper that also required Pi's collapsed-thinking setting.
+  // The next install replaces that wrapper instead of leaving it on the prototype.
+  generation: typeof CALM_ASSISTANT_LAYOUT_GENERATION;
+  innerUpdateContent: AssistantUpdateContent;
 };
 
 // A mid-turn assistant message is one the model did not end its response with: Pi's
@@ -39,12 +58,6 @@ function isMidTurnAssistantMessage(message: AssistantMessage): boolean {
   );
 }
 
-// Keep the introduction-version symbol stable so a compatible upgrade cannot
-// double-patch a live process.
-const CALM_ASSISTANT_LAYOUT_PATCH = Symbol.for(
-  "firstmate:calm-assistant-layout:pi-0.81.1",
-);
-
 export function installCalmAssistantLayout(): void {
   const registry = globalThis as typeof globalThis & {
     [key: symbol]: CalmAssistantLayoutPatch | undefined;
@@ -52,30 +65,41 @@ export function installCalmAssistantLayout(): void {
   const hidesThinking = (): boolean => calmPresentationHides("assistant-thinking");
   const hidesWorkingNote = (): boolean => calmPresentationHides("assistant-working-note");
   const installed = registry[CALM_ASSISTANT_LAYOUT_PATCH];
-  if (installed) {
+  if (installed?.generation === CALM_ASSISTANT_LAYOUT_GENERATION) {
     installed.hidesThinking = hidesThinking;
     installed.hidesWorkingNote = hidesWorkingNote;
     return;
   }
 
-  const patch: CalmAssistantLayoutPatch = { hidesThinking, hidesWorkingNote };
   const AssistantMessageComponent = PiCodingAgent.AssistantMessageComponent;
   if (typeof AssistantMessageComponent !== "function") {
     throw new Error("Firstmate Calm requires Pi AssistantMessageComponent");
   }
-  const originalUpdateContent = AssistantMessageComponent.prototype.updateContent;
-  if (typeof originalUpdateContent !== "function") {
+  const currentUpdateContent = AssistantMessageComponent.prototype.updateContent;
+  if (typeof currentUpdateContent !== "function") {
     throw new Error("Firstmate Calm requires Pi AssistantMessageComponent.updateContent");
   }
+  // An older patch stored no inner method. Its prototype wrapper is the inner
+  // call, so this install does not stack another copy on every reload.
+  const innerUpdateContent = installed?.innerUpdateContent ?? currentUpdateContent;
+  const patch: CalmAssistantLayoutPatch = {
+    hidesThinking,
+    hidesWorkingNote,
+    generation: CALM_ASSISTANT_LAYOUT_GENERATION,
+    innerUpdateContent,
+  };
 
   AssistantMessageComponent.prototype.updateContent = function (
     message: AssistantMessage,
+    isStreaming?: boolean,
   ): void {
     const state = this as unknown as AssistantMessagePresentationState;
-    const hideThinking =
-      state.hiddenThinkingLabel === "" &&
-      state.hideThinkingBlock &&
-      patch.hidesThinking();
+    // Expanded reasoning and per-block click expansion both re-enter this method.
+    // Calm hides the thinking block itself, so those paths cannot put it back on screen.
+    // Pi's hideThinkingBlock setting is not required: a collapsed "Thinking..." label
+    // is still thinking chrome, and a session that never applied that setting still
+    // paints the reasoning text.
+    const hideThinking = patch.hidesThinking();
     const hideWorkingNote =
       patch.hidesWorkingNote() &&
       isMidTurnAssistantMessage(message) &&
@@ -98,7 +122,9 @@ export function installCalmAssistantLayout(): void {
           }
         : message;
 
-    originalUpdateContent.call(this, presentationMessage);
+    // Older Pi builds take only the message. Passing the streaming flag through keeps
+    // the installed signature's default from freezing a stale streaming bit.
+    patch.innerUpdateContent.call(this, presentationMessage, isStreaming);
     if (presentationMessage !== message) state.lastMessage = message;
   };
 

@@ -147,11 +147,13 @@ case "$cmd" in
     # Dump recent app logs or crash stack traces
     lines="${1:-100}"
     echo "=== Recent logs for $PACKAGE (last $lines lines) ==="
+    "$ADB" get-state >/dev/null  # adb logcat waits forever for a missing device
     log=$("$ADB" logcat -d -t "$lines" -v time)
     grep -E "$PACKAGE|AndroidRuntime|FATAL" <<< "$log" || true
     ;;
 
   logcat-clear)
+    "$ADB" get-state >/dev/null  # adb logcat waits forever for a missing device
     "$ADB" logcat -c
     echo "Logcat buffer cleared."
     ;;

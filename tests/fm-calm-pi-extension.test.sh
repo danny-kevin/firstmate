@@ -1734,8 +1734,8 @@ if (JSON.stringify(assistantThinkingText.render(100)) !== JSON.stringify(assista
   throw new Error("Calm-hidden thinking changed final assistant row geometry");
 }
 assistantThinkingTool.setHideThinkingBlock(false);
-if (!assistantThinkingTool.render(100).join("\n").includes("HIDDEN_TOOL_THINKING")) {
-  throw new Error("expanding thinking did not restore the original reasoning content");
+if (assistantThinkingTool.render(100).length !== 0) {
+  throw new Error("expanding thinking revealed reasoning while Calm was on");
 }
 assistantThinkingTool.setHideThinkingBlock(true);
 if (assistantThinkingTool.render(100).length !== 0) {
@@ -2906,17 +2906,15 @@ TS
   assert_geometry_gap "$snapshot" "reloaded native Calm transcript"
 
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" C-t
-  wait_for_geometry_text "$expanded_snapshot" "CALM_GEOMETRY_THINKING_ONE" \
-    || fail "thinking expansion did not restore Calm-hidden reasoning"
+  sleep 1
+  capture_geometry_viewport "$expanded_snapshot"
+  assert_contains "$(cat "$expanded_snapshot")" "CALM_GEOMETRY_FINAL" "expanding thinking hid the final assistant response"
+  assert_not_contains "$(cat "$expanded_snapshot")" "CALM_GEOMETRY_THINKING_ONE" "thinking expansion revealed Calm-hidden reasoning"
   assert_not_contains "$(cat "$expanded_snapshot")" "probe-one.txt" "thinking expansion restored Calm-hidden tool rows"
+  assert_geometry_gap "$expanded_snapshot" "expanded native Calm transcript"
   tmux -L "$TMUX_SOCKET" send-keys -t "$TMUX_SESSION" C-t
-  i=0
-  while [ "$i" -lt 120 ]; do
-    capture_geometry_viewport "$snapshot"
-    grep -Fq "CALM_GEOMETRY_THINKING_ONE" "$snapshot" || break
-    sleep 0.05
-    i=$((i + 1))
-  done
+  sleep 1
+  capture_geometry_viewport "$snapshot"
   assert_not_contains "$(cat "$snapshot")" "CALM_GEOMETRY_THINKING_ONE" "collapsing thinking restored hidden-row output"
   assert_geometry_gap "$snapshot" "re-collapsed native Calm transcript"
 
@@ -4016,7 +4014,7 @@ SH
 
   : >"$dir/attempts-hang"
   : >"$out_file"
-  if FM_FAKE_CHROME_ATTEMPTS="$dir/attempts-hang" FM_CHROME_RENDER_WAIT_TICKS=3 \
+  if FM_FAKE_CHROME_ATTEMPTS="$dir/attempts-hang" FM_CHROME_RENDER_WAIT_TICKS=20 \
     render_export_dom "$dir/chrome-hang" "$source_file" "$out_file" 9.9.9 >"$dir/report-hang"
   then
     fail "render_export_dom accepted a Chrome that never finished the DOM"
